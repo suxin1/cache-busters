@@ -2,6 +2,10 @@
 name = "cache-busters"
 version = "0.1.0"
 edition = "2021"
+description = "Create a struct with the hashes of files for cache busting"
+license = "MIT"
+repository = "https://github.com/bionic-gpt/cache-busters/"
+homepage = "https://github.com/bionic-gpt/cache-busters"
 
 [dependencies]
 md5 = "0.7"
