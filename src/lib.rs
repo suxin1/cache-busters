@@ -2,7 +2,11 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-pub fn generate_static_files_code(out_dir: &Path, asset_dirs: &[PathBuf]) -> std::io::Result<()> {
+pub fn generate_static_files_code(
+    out_dir: &Path,
+    asset_dirs: &[PathBuf],
+    extra_files: &[PathBuf],
+) -> std::io::Result<()> {
     let mut output = String::new();
     let mut static_file_names = Vec::new();
 
@@ -13,7 +17,7 @@ pub fn generate_static_files_code(out_dir: &Path, asset_dirs: &[PathBuf]) -> std
         pub struct StaticFile {
             pub file_name: &'static str,
             pub name: &'static str,
-            pub mime: mime::Mime,
+            pub mime: &'static str,
         }
     "#,
     );
@@ -21,6 +25,11 @@ pub fn generate_static_files_code(out_dir: &Path, asset_dirs: &[PathBuf]) -> std
     // Process each asset directory provided
     for asset_dir in asset_dirs {
         process_directory(asset_dir, &mut output, &mut static_file_names)?;
+    }
+
+    // Process any extra individual files
+    for file_path in extra_files {
+        process_file(file_path, &mut output, &mut static_file_names)?;
     }
 
     output.push_str(
@@ -31,7 +40,9 @@ pub fn generate_static_files_code(out_dir: &Path, asset_dirs: &[PathBuf]) -> std
             pub fn get(name: &str) -> Option<&'static Self> {
                 if let Some(pos) = STATICS.iter().position(|&s| name == s.name) {
                     Some(STATICS[pos])
-                } else {None}
+                } else {
+                    None
+                }
             }
         }
     "#,
@@ -72,44 +83,55 @@ fn process_directory(
             // Recursively process subdirectories
             process_directory(&path, output, static_file_names)?;
         } else if path.is_file() {
-            // Get the full path using canonicalize
-            let full_path = fs::canonicalize(&path)?;
-            let file_name = full_path.to_str().unwrap();
-
-            // Generate the hash for cache busting using MD5 and hex encoding
-            let hash = calculate_hash(&path)?;
-
-            // Generate a static-friendly variable name (e.g., assistant_svg)
-            let var_name = path
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace(['/', '.', '-'], "_");
-
-            // Construct the new hashed filename
-            let file_stem = path.file_stem().unwrap().to_str().unwrap();
-            let extension = path.extension().unwrap().to_str().unwrap();
-            let hashed_name = format!("{file_stem}-{hash}.{extension}");
-
-            // Generate Rust code for the static file
-            output.push_str(&format!(
-                r#"
-                /// From "{file_name}"
-                #[allow(non_upper_case_globals)]
-                pub static {var_name}: StaticFile = StaticFile {{
-                    file_name: "{file_name}",
-                    name: "/static/{hashed_name}",
-                    mime: mime::{},
-                }};
-                "#,
-                mime_type_from_extension(extension),
-            ));
-
-            // Collect the variable name for the STATICS array
-            static_file_names.push(var_name);
+            process_file(&path, output, static_file_names)?;
         }
     }
+
+    Ok(())
+}
+
+fn process_file(
+    path: &Path,
+    output: &mut String,
+    static_file_names: &mut Vec<String>,
+) -> std::io::Result<()> {
+    // Get the full path using canonicalize
+    let full_path = fs::canonicalize(&path)?;
+    let file_name = full_path.to_str().unwrap();
+
+    // Generate the hash for cache busting using MD5 and hex encoding
+    let hash = calculate_hash(&path)?;
+
+    // Generate a static-friendly variable name (e.g., assistant_svg)
+    let var_name = path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace(['/', '.', '-'], "_");
+
+    // Construct the new hashed filename
+    let file_stem = path.file_stem().unwrap().to_str().unwrap();
+    let extension = path.extension().unwrap().to_str().unwrap();
+    let hashed_name = format!("{file_stem}-{hash}.{extension}");
+
+    let mime_type = mime_type_from_extension(extension);
+
+    // Generate Rust code for the static file
+    output.push_str(&format!(
+        r#"
+        /// From "{file_name}"
+        #[allow(non_upper_case_globals)]
+        pub static {var_name}: StaticFile = StaticFile {{
+            file_name: "{file_name}",
+            name: "/static/{hashed_name}",
+            mime: "{mime_type}",
+        }};
+        "#,
+    ));
+
+    // Collect the variable name for the STATICS array
+    static_file_names.push(var_name);
 
     Ok(())
 }
@@ -127,14 +149,15 @@ fn calculate_hash(path: &Path) -> std::io::Result<String> {
     Ok(format!("{:x}", hash))
 }
 
-// Helper function to map file extensions to MIME types
+// Helper function to map file extensions to MIME types as strings
 fn mime_type_from_extension(extension: &str) -> &'static str {
     match extension {
-        "svg" => "IMAGE_SVG",
-        "png" => "IMAGE_PNG",
-        "jpg" | "jpeg" => "IMAGE_JPEG",
-        "css" => "TEXT_CSS",
-        "js" => "APPLICATION_JAVASCRIPT",
-        _ => "APPLICATION_OCTET_STREAM",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "css" => "text/css",
+        "js" => "application/javascript",
+        "wasm" => "application/wasm",
+        _ => "application/octet-stream",
     }
 }
