@@ -6,9 +6,11 @@ pub fn generate_static_files_code(
     out_dir: &Path,
     asset_dirs: &[PathBuf],
     extra_files: &[PathBuf],
+    prefix: Option<&str>,
 ) -> std::io::Result<()> {
     let mut output = String::new();
     let mut static_file_names = Vec::new();
+    let prefix = prefix.unwrap_or("/static");
 
     // Add the StaticFile struct definition to the output
     output.push_str(
@@ -24,12 +26,12 @@ pub fn generate_static_files_code(
 
     // Process each asset directory provided
     for asset_dir in asset_dirs {
-        process_directory(asset_dir, &mut output, &mut static_file_names)?;
+        process_directory(asset_dir, &mut output, &mut static_file_names, prefix)?;
     }
 
     // Process any extra individual files
     for file_path in extra_files {
-        process_file(file_path, &mut output, &mut static_file_names)?;
+        process_file(file_path, &mut output, &mut static_file_names, prefix)?;
     }
 
     output.push_str(
@@ -73,6 +75,7 @@ fn process_directory(
     dir: &Path,
     output: &mut String,
     static_file_names: &mut Vec<String>,
+    prefix: &str,
 ) -> std::io::Result<()> {
     // Walk through the directory recursively
     for entry in fs::read_dir(dir)? {
@@ -81,9 +84,9 @@ fn process_directory(
 
         if path.is_dir() {
             // Recursively process subdirectories
-            process_directory(&path, output, static_file_names)?;
+            process_directory(&path, output, static_file_names, prefix)?;
         } else if path.is_file() {
-            process_file(&path, output, static_file_names)?;
+            process_file(&path, output, static_file_names, prefix)?;
         }
     }
 
@@ -94,6 +97,7 @@ fn process_file(
     path: &Path,
     output: &mut String,
     static_file_names: &mut Vec<String>,
+    prefix: &str,
 ) -> std::io::Result<()> {
     // Get the full path using canonicalize
     let full_path = fs::canonicalize(&path)?;
@@ -124,7 +128,7 @@ fn process_file(
         #[allow(non_upper_case_globals)]
         pub static {var_name}: StaticFile = StaticFile {{
             file_name: "{file_name}",
-            name: "/static/{hashed_name}",
+            name: "{prefix}/{hashed_name}",
             mime: "{mime_type}",
         }};
         "#,
