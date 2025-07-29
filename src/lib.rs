@@ -7,6 +7,7 @@ pub fn generate_static_files_code(
     asset_dirs: &[PathBuf],
     extra_files: &[PathBuf],
     prefix: Option<&str>,
+    hashed: bool,
 ) -> std::io::Result<()> {
     let mut output = String::new();
     let mut static_file_names = Vec::new();
@@ -26,12 +27,24 @@ pub fn generate_static_files_code(
 
     // Process each asset directory provided
     for asset_dir in asset_dirs {
-        process_directory(asset_dir, &mut output, &mut static_file_names, prefix)?;
+        process_directory(
+            asset_dir,
+            &mut output,
+            &mut static_file_names,
+            prefix,
+            hashed,
+        )?;
     }
 
     // Process any extra individual files
     for file_path in extra_files {
-        process_file(file_path, &mut output, &mut static_file_names, prefix)?;
+        process_file(
+            file_path,
+            &mut output,
+            &mut static_file_names,
+            prefix,
+            hashed,
+        )?;
     }
 
     output.push_str(
@@ -76,6 +89,7 @@ fn process_directory(
     output: &mut String,
     static_file_names: &mut Vec<String>,
     prefix: &str,
+    hashed: bool,
 ) -> std::io::Result<()> {
     // Walk through the directory recursively
     for entry in fs::read_dir(dir)? {
@@ -84,9 +98,9 @@ fn process_directory(
 
         if path.is_dir() {
             // Recursively process subdirectories
-            process_directory(&path, output, static_file_names, prefix)?;
+            process_directory(&path, output, static_file_names, prefix, hashed)?;
         } else if path.is_file() {
-            process_file(&path, output, static_file_names, prefix)?;
+            process_file(&path, output, static_file_names, prefix, hashed)?;
         }
     }
 
@@ -98,6 +112,7 @@ fn process_file(
     output: &mut String,
     static_file_names: &mut Vec<String>,
     prefix: &str,
+    hashed: bool,
 ) -> std::io::Result<()> {
     // Get the full path using canonicalize
     let full_path = fs::canonicalize(&path)?;
@@ -117,7 +132,12 @@ fn process_file(
     // Construct the new hashed filename
     let file_stem = path.file_stem().unwrap().to_str().unwrap();
     let extension = path.extension().unwrap().to_str().unwrap();
-    let hashed_name = format!("{file_stem}-{hash}.{extension}");
+
+    let hashed_name = if hashed {
+        format!("{file_stem}-{hash}.{extension}")
+    } else {
+        format!("{file_stem}.{extension}")
+    };
 
     let mime_type = mime_type_from_extension(extension);
 
