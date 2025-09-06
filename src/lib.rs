@@ -114,6 +114,11 @@ fn process_file(
     prefix: &str,
     hashed: bool,
 ) -> std::io::Result<()> {
+    // Skip .DS_Store files
+    if path.file_name().unwrap_or_default() == ".DS_Store" {
+        println!("cargo::warning=Skip file: {}", path.display());
+        return Ok(());
+    }
     println!("cargo::warning=Processing file: {}", path.display());
     // Get the full path using canonicalize
     let full_path = fs::canonicalize(&path)?;
