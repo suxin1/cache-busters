@@ -2,16 +2,35 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+pub struct Config {
+    pub out_dir: Option<PathBuf>,
+    pub asset_dirs: Vec<PathBuf>,
+    pub extra_files: Vec<PathBuf>,
+    pub prefix: String,
+    pub hashed: bool,
+    pub output_file_name: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            out_dir: None,
+            asset_dirs: vec![],
+            extra_files: vec![],
+            prefix: "/static".to_string(),
+            hashed: true,
+            output_file_name: "static_files.rs".to_string(),
+        }
+    }
+}
+
 pub fn generate_static_files_code(
-    out_dir: &Path,
-    asset_dirs: &[PathBuf],
-    extra_files: &[PathBuf],
-    prefix: Option<&str>,
-    hashed: bool,
+    config: Config
 ) -> std::io::Result<()> {
     let mut output = String::new();
     let mut static_file_names = Vec::new();
-    let prefix = prefix.unwrap_or("/static");
+    let prefix = &config.prefix;
+    let hashed = config.hashed.clone();
 
     // Add the StaticFile struct definition to the output
     output.push_str(
@@ -26,7 +45,7 @@ pub fn generate_static_files_code(
     );
 
     // Process each asset directory provided
-    for asset_dir in asset_dirs {
+    for asset_dir in &config.asset_dirs {
         process_directory(
             asset_dir,
             &mut output,
@@ -37,7 +56,7 @@ pub fn generate_static_files_code(
     }
 
     // Process any extra individual files
-    for file_path in extra_files {
+    for file_path in &config.extra_files {
         process_file(
             file_path,
             &mut output,
@@ -77,7 +96,8 @@ pub fn generate_static_files_code(
     output.push('}');
 
     // Write the generated code to the output file
-    let out_file_path = out_dir.join("static_files.rs");
+    let out_dir = config.out_dir.unwrap();
+    let out_file_path = out_dir.join(config.output_file_name);
     let mut out_file = File::create(out_file_path)?;
     out_file.write_all(output.as_bytes())?;
 
