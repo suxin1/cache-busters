@@ -114,6 +114,7 @@ fn process_file(
     prefix: &str,
     hashed: bool,
 ) -> std::io::Result<()> {
+    println!("cargo::warning=Processing file: {}", path.display());
     // Get the full path using canonicalize
     let full_path = fs::canonicalize(&path)?;
     let file_name = full_path.to_str().unwrap();
